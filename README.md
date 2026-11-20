@@ -24,3 +24,7 @@ Layout: `tacman/detect.py` (distro + package manager), `tacman/catalog.py`
 (builtin + custom entries), `tacman/runner.py` (queue, params, sudo),
 `tacman/cli.py` (commands + JSON output), `tacman/data/builtin.json` (the catalog).
 Custom entries: `~/.config/tacman/catalog.json`, same format as `builtin.json`.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
