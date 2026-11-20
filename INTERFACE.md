@@ -88,7 +88,7 @@ Failure:
 | `name` | string | Display name. |
 | `description` | string | One line. |
 | `category` | string | Free text; builtin ones: System info, Packages, Disk, Network, Users, Services, Misc. |
-| `command` | string | Already resolved for this machine. Run via `sh -c` (or `bash -c`, engine decides). |
+| `command` | string | Already resolved for this machine. Always run via `sh -c`, so catalog commands must be plain POSIX shell. |
 | `sudo` | bool | Engine runs it with `sudo -n`. |
 | `risky` | bool | Needs explicit confirmation before it runs. |
 | `params` | array | Inputs the entry needs, see below. Empty if none. |
@@ -221,8 +221,9 @@ its generated `id`. Editing or deleting a builtin entry fails with code
 ## 6. Catalog file format (for people adding entries)
 
 Catalog files are JSON arrays. An entry gives either one universal `command`, or a
-`commands` object keyed by package manager (`apt`, `dnf`, `pacman`, `zypper`,
-`apk`). Entries with no variant for the current machine are hidden.
+`commands` object keyed by package manager. v1 supports `apt` and `pacman`;
+`dnf`, `zypper` and `apk` are planned. Entries with no variant for the current
+machine are hidden.
 
 ```json
 [
@@ -234,9 +235,9 @@ Catalog files are JSON arrays. An entry gives either one universal `command`, or
 ]
 ```
 
-For v1, every package-specific entry must provide both `apt` and `pacman`
-variants, unless it only makes sense on one (like "List orphan packages" tools
-that differ). Entries missing a variant are simply hidden on that family.
+Builtin package-specific entries must provide both `apt` and `pacman` variants (a
+test enforces this). A custom entry may provide just one, for example a command
+that only exists on Arch; it is simply hidden on the other family.
 
 ## 7. Who owns what
 
