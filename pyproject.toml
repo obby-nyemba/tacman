@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tacman"
+version = "0.1.0"
+description = "Pick Linux commands from a menu instead of typing them. Python engine with a JSON interface, built for Debian and Arch."
+requires-python = ">=3.8"
+
+[project.scripts]
+tacman = "tacman.cli:main"
+
+[tool.setuptools]
+packages = ["tacman"]
+
+[tool.setuptools.package-data]
+tacman = ["data/*.json"]

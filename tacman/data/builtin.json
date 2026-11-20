@@ -1,0 +1,294 @@
+[
+  {
+    "id": "kernel-hostname",
+    "name": "Kernel & hostname",
+    "description": "uname -a",
+    "category": "System info",
+    "command": "uname -a"
+  },
+  {
+    "id": "memory-usage",
+    "name": "Memory usage",
+    "description": "RAM usage summary",
+    "category": "System info",
+    "command": "free -h"
+  },
+  {
+    "id": "uptime-load",
+    "name": "Uptime & load",
+    "description": "how long up, load average",
+    "category": "System info",
+    "command": "uptime"
+  },
+  {
+    "id": "cpu-info",
+    "name": "CPU info",
+    "description": "lscpu",
+    "category": "System info",
+    "command": "lscpu"
+  },
+  {
+    "id": "usb-devices",
+    "name": "USB devices",
+    "description": "lsusb",
+    "category": "System info",
+    "command": "lsusb"
+  },
+  {
+    "id": "pci-devices",
+    "name": "PCI devices",
+    "description": "lspci",
+    "category": "System info",
+    "command": "lspci"
+  },
+  {
+    "id": "update-system",
+    "name": "Update system",
+    "description": "refresh + upgrade all packages",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt update && apt upgrade -y",
+      "pacman": "pacman -Syu --noconfirm"
+    },
+    "sudo": true
+  },
+  {
+    "id": "install-package",
+    "name": "Install package",
+    "description": "install a package by name",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt install -y {package}",
+      "pacman": "pacman -S --noconfirm {package}"
+    },
+    "sudo": true,
+    "params": [
+      {
+        "name": "package",
+        "prompt": "package name"
+      }
+    ]
+  },
+  {
+    "id": "remove-package",
+    "name": "Remove package",
+    "description": "remove a package by name",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt remove -y {package}",
+      "pacman": "pacman -Rns --noconfirm {package}"
+    },
+    "sudo": true,
+    "risky": true,
+    "params": [
+      {
+        "name": "package",
+        "prompt": "package name"
+      }
+    ]
+  },
+  {
+    "id": "clean-package-cache",
+    "name": "Clean package cache",
+    "description": "free disk from cached packages",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt autoremove -y && apt clean",
+      "pacman": "pacman -Sc --noconfirm"
+    },
+    "sudo": true
+  },
+  {
+    "id": "search-packages",
+    "name": "Search packages",
+    "description": "search the repositories",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt search {term}",
+      "pacman": "pacman -Ss {term}"
+    },
+    "params": [
+      {
+        "name": "term",
+        "prompt": "search term"
+      }
+    ]
+  },
+  {
+    "id": "list-orphan-packages",
+    "name": "List orphan packages",
+    "description": "packages nothing depends on",
+    "category": "Packages",
+    "commands": {
+      "apt": "apt-get --dry-run autoremove 2>/dev/null | grep -Po '^Remv \\K[^ ]+' || true",
+      "pacman": "pacman -Qdtq || true"
+    }
+  },
+  {
+    "id": "disk-usage",
+    "name": "Disk usage",
+    "description": "filesystem space",
+    "category": "Disk",
+    "command": "df -h"
+  },
+  {
+    "id": "largest-directories",
+    "name": "Largest directories",
+    "description": "top 10 dirs under /",
+    "category": "Disk",
+    "command": "du -x -h -d1 / 2>/dev/null | sort -rh | head -10",
+    "sudo": true
+  },
+  {
+    "id": "block-devices",
+    "name": "Block devices",
+    "description": "lsblk with mounts",
+    "category": "Disk",
+    "command": "lsblk -f"
+  },
+  {
+    "id": "smart-health",
+    "name": "SMART health",
+    "description": "disk health via smartctl",
+    "category": "Disk",
+    "command": "smartctl -a \"$(lsblk -dno NAME | head -1 | sed 's|^|/dev/|')\"",
+    "sudo": true
+  },
+  {
+    "id": "find-large-files",
+    "name": "Find large files",
+    "description": "files >500MB in $HOME",
+    "category": "Disk",
+    "command": "find ~ -type f -size +500M -exec ls -lh {} + 2>/dev/null | awk '{print $5, $9}'"
+  },
+  {
+    "id": "ip-addresses",
+    "name": "IP addresses",
+    "description": "ip addr",
+    "category": "Network",
+    "command": "ip -brief addr"
+  },
+  {
+    "id": "routing-table",
+    "name": "Routing table",
+    "description": "ip route",
+    "category": "Network",
+    "command": "ip route"
+  },
+  {
+    "id": "open-ports",
+    "name": "Open ports",
+    "description": "listening sockets",
+    "category": "Network",
+    "command": "ss -tulpn",
+    "sudo": true
+  },
+  {
+    "id": "ping-gateway",
+    "name": "Ping gateway",
+    "description": "connectivity check",
+    "category": "Network",
+    "command": "ping -c 3 $(ip route | awk '/default/ {print $3; exit}')"
+  },
+  {
+    "id": "dns-lookup",
+    "name": "DNS lookup",
+    "description": "resolve a hostname",
+    "category": "Network",
+    "command": "getent hosts {host}",
+    "params": [
+      {
+        "name": "host",
+        "prompt": "hostname"
+      }
+    ]
+  },
+  {
+    "id": "restart-networking",
+    "name": "Restart networking",
+    "description": "restart NetworkManager",
+    "category": "Network",
+    "command": "systemctl restart NetworkManager",
+    "sudo": true,
+    "risky": true
+  },
+  {
+    "id": "who-is-logged-in",
+    "name": "Who is logged in",
+    "description": "current sessions",
+    "category": "Users",
+    "command": "who"
+  },
+  {
+    "id": "last-logins",
+    "name": "Last logins",
+    "description": "recent login history",
+    "category": "Users",
+    "command": "last -n 15"
+  },
+  {
+    "id": "sudoers",
+    "name": "Sudoers",
+    "description": "who has sudo rights",
+    "category": "Users",
+    "command": "grep -rE '^(%?[a-zA-Z0-9._-]+.*ALL)' /etc/sudoers /etc/sudoers.d/ 2>/dev/null",
+    "sudo": true
+  },
+  {
+    "id": "failed-services",
+    "name": "Failed services",
+    "description": "units in failed state",
+    "category": "Services",
+    "command": "systemctl --failed"
+  },
+  {
+    "id": "service-status",
+    "name": "Service status",
+    "description": "status of one unit",
+    "category": "Services",
+    "command": "systemctl status {service} --no-pager",
+    "params": [
+      {
+        "name": "service",
+        "prompt": "service name"
+      }
+    ]
+  },
+  {
+    "id": "restart-service",
+    "name": "Restart service",
+    "description": "restart one unit",
+    "category": "Services",
+    "command": "systemctl restart {service}",
+    "sudo": true,
+    "risky": true,
+    "params": [
+      {
+        "name": "service",
+        "prompt": "service name"
+      }
+    ]
+  },
+  {
+    "id": "enable-service",
+    "name": "Enable service",
+    "description": "start on boot and now",
+    "category": "Services",
+    "command": "systemctl enable --now {service}",
+    "sudo": true,
+    "params": [
+      {
+        "name": "service",
+        "prompt": "service name"
+      }
+    ]
+  },
+  {
+    "id": "journal-errors",
+    "name": "Journal errors",
+    "description": "last boot's errors",
+    "category": "Services",
+    "command": "journalctl -p err -b --no-pager",
+    "sudo": true
+  }
+]
