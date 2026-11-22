@@ -4,6 +4,10 @@
 `--dry-run`) are implemented and tested. `plan` and the `custom` commands are
 specified below but not built yet; `run --dry-run` covers what `plan` is for.
 
+`tacman menu` is an interactive front-end that uses only this interface, so it
+doubles as a reference client. `info` and `list` accept `--pretty` for indented
+output meant for humans.
+
 tacman is a Python engine. Front-ends and tools written in any language use it by
 running the `tacman` command with `--json` and reading what it prints. This file
 is the team agreement: if the engine and this document disagree, fix one of them

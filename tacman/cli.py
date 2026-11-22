@@ -1,7 +1,8 @@
-"""Command line: argument parsing and JSON output. v1 commands: info, list, run.
+"""Command line: argument parsing and JSON output. commands: info, list, run, menu.
 
-JSON is the only output format for now; --json is accepted so callers can
-follow the contract in INTERFACE.md.
+The engine commands (info, list, run) print JSON only; --json is accepted so
+callers can follow the contract in INTERFACE.md. `menu` is an interactive
+front-end built on top of those commands.
 """
 from __future__ import annotations
 
@@ -23,8 +24,9 @@ class UsageError(Exception):
     pass
 
 
-def ok(data) -> int:
-    print(json.dumps({"schema": SCHEMA, "ok": True, "data": data}, ensure_ascii=False))
+def ok(data, pretty: bool = False) -> int:
+    print(json.dumps({"schema": SCHEMA, "ok": True, "data": data},
+                     ensure_ascii=False, indent=2 if pretty else None))
     return EXIT_OK
 
 
@@ -56,7 +58,7 @@ def parse_params(items: List[str]) -> Dict[str, str]:
 
 
 def cmd_info(args) -> int:
-    return ok(detect_machine(check_sudo=True).to_dict())
+    return ok(detect_machine(check_sudo=True).to_dict(), pretty=args.pretty)
 
 
 def cmd_list(args) -> int:
@@ -67,7 +69,7 @@ def cmd_list(args) -> int:
         word = args.search.lower()
         entries = [e for e in entries
                    if word in (e.id + " " + e.name + " " + e.description).lower()]
-    return ok({"entries": [e.to_dict() for e in entries]})
+    return ok({"entries": [e.to_dict() for e in entries]}, pretty=args.pretty)
 
 
 def cmd_run(args) -> int:
@@ -104,9 +106,18 @@ def cmd_run(args) -> int:
                      on_failure=args.on_failure, dry_run=args.dry_run)
 
 
+def cmd_menu(args) -> int:
+    from .menu import main as menu_main
+    return menu_main()
+
+
+def _interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = JsonArgumentParser(prog="tacman", description="Curated Linux command catalog (JSON interface).")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=False)
 
     def add(name, func, help_text):
         p = sub.add_parser(name, help=help_text)
@@ -114,11 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=func)
         return p
 
-    add("info", cmd_info, "show detected distro and package manager")
+    p = add("info", cmd_info, "show detected distro and package manager")
+    p.add_argument("--pretty", action="store_true", help="indent the JSON (for humans)")
 
     p = add("list", cmd_list, "list catalog entries that work on this machine")
     p.add_argument("--category")
     p.add_argument("--search")
+    p.add_argument("--pretty", action="store_true", help="indent the JSON (for humans)")
 
     p = add("run", cmd_run, "run entries one at a time, streaming JSON Lines events")
     p.add_argument("ids", nargs="+", metavar="id")
@@ -126,11 +139,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--confirm-risky", metavar="IDS", help="comma-separated ids, or 'all'")
     p.add_argument("--on-failure", choices=["continue", "abort"], default="abort")
     p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("menu", help="interactive menu: pick commands by number or keyword")
+    p.set_defaults(func=cmd_menu)
     return parser
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command is None:  # bare `tacman`: menu in a terminal, usage error in a pipe
+        if not _interactive():
+            parser.error("a command is required: info, list, run or menu")
+        args.func = cmd_menu
     try:
         return args.func(args)
     except UsageError as exc:
