@@ -25,7 +25,7 @@ without asking first, because Tacman has to run on a bare Debian or Arch box.
 3. Make your change, then run `python3 -m unittest discover`
 4. Commit with a clear message: `git commit -m "Add Docker catalog entries"`
 5. Push the branch: `git push -u origin short-description`
-6. Open a pull request on GitHub. Say what changed and why.
+6. Open a pull request on GitHub. Say what changed and why. GitHub then runs the tests on Debian and Arch; wait for them to turn green.
 7. Wait for review. Fix anything asked, push again, and it updates the same PR.
 
 Set your git email to the one on your GitHub account (`git config user.email`)

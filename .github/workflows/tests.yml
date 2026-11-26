@@ -1,0 +1,66 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-versions:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.8", "3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Run tests
+        run: python -m unittest discover -v
+
+  debian:
+    name: Debian
+    runs-on: ubuntu-latest
+    container: debian:stable-slim
+    steps:
+      - name: Install Python and git
+        run: apt-get update && apt-get install -y --no-install-recommends python3 git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Detects Debian and apt
+        run: |
+          python3 -m tacman info | python3 -c "import json,sys; d=json.load(sys.stdin)['data']; print(d['distro_name'], d['family'], d['pkg_manager']); assert d['family']=='debian' and d['pkg_manager']=='apt' and d['supported'], d"
+      - name: Run tests
+        run: python3 -m unittest discover -v
+      - name: Picks the apt command
+        run: python3 -m tacman run install-package --param package=htop --dry-run | grep -F 'apt install -y htop'
+      - name: Read-only smoke test
+        run: python3 -m tacman run kernel-hostname list-orphan-packages
+
+  arch:
+    name: Arch Linux
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install Python and git
+        run: pacman -Syu --noconfirm python git
+      - uses: actions/checkout@v4
+      - name: Detects Arch and pacman
+        run: |
+          python3 -m tacman info | python3 -c "import json,sys; d=json.load(sys.stdin)['data']; print(d['distro_name'], d['family'], d['pkg_manager']); assert d['family']=='arch' and d['pkg_manager']=='pacman' and d['supported'], d"
+      - name: Run tests
+        run: python3 -m unittest discover -v
+      - name: Picks the pacman command
+        run: python3 -m tacman run install-package --param package=htop --dry-run | grep -F 'pacman -S --noconfirm htop'
+      - name: Read-only smoke test
+        run: python3 -m tacman run kernel-hostname list-orphan-packages

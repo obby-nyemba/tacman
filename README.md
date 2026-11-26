@@ -1,5 +1,7 @@
 # tacman
 
+[![tests](https://github.com/obby-nyemba/tacman/actions/workflows/tests.yml/badge.svg)](https://github.com/obby-nyemba/tacman/actions/workflows/tests.yml)
+
 Pick Linux commands from a menu instead of typing them. Python engine with a
 JSON interface, built for Debian and Arch.
 
