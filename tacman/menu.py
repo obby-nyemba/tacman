@@ -240,6 +240,75 @@ def run_queue_interactive(queue: List[Entry], params: Dict[str, str], approved: 
     print("\nDone: %d ok, %d failed%s." % (ok, failed, ", %d not run" % not_run if not_run else ""))
 
 
+# ---------------------------------------------------------------- your own commands
+def add_custom_entry() -> bool:
+    """Ask for the details of a new command and save it through the engine."""
+    print("\nAdd your own command (leave the name empty to cancel).")
+    name = input("  Name: ").strip()
+    if not name:
+        print("  cancelled")
+        return False
+    description = input("  Description: ").strip()
+    category = input("  Category [Custom]: ").strip() or "Custom"
+    command = input("  Command: ").strip()
+    if not command:
+        print("  a command is required; cancelled")
+        return False
+    sudo = input("  Needs sudo? [y/N]: ").strip().lower() in ("y", "yes")
+    risky = input("  Risky or destructive? [y/N]: ").strip().lower() in ("y", "yes")
+
+    # --opt=value form, so values that start with '-' aren't taken for options
+    args = ["custom", "add", "--json", "--name=" + name, "--description=" + description,
+            "--category=" + category, "--command=" + command]
+    if sudo:
+        args.append("--sudo")
+    if risky:
+        args.append("--risky")
+    try:
+        entry = call(*args)
+    except EngineError as exc:
+        print("  could not add it: %s" % exc)
+        return False
+    print("  added '%s' (id: %s)" % (entry["name"], entry["id"]))
+    return True
+
+
+def delete_custom_entry(entries: List[Entry]) -> bool:
+    """Let the user delete one of the commands they added themselves."""
+    mine = [e for e in entries if e.get("source") == "custom"]
+    if not mine:
+        print("\nYou haven't added any commands of your own yet.")
+        return False
+    print("\nYour own commands:")
+    for number, e in enumerate(mine, 1):
+        print("  %d. %s  ->  %s" % (number, e["name"], e["command"]))
+    choice = input("Delete which one? (number, or empty to cancel): ").strip()
+    if not choice:
+        return False
+    if not choice.isdecimal() or not 1 <= int(choice) <= len(mine):
+        print("bad number")
+        return False
+    entry = mine[int(choice) - 1]
+    if input("  Type 'yes' to delete '%s': " % entry["name"]).strip() != "yes":
+        print("  kept")
+        return False
+    try:
+        call("custom", "delete", entry["id"], "--json")
+    except EngineError as exc:
+        print("  could not delete it: %s" % exc)
+        return False
+    print("  deleted")
+    return True
+
+
+def reload_entries(entries: List[Entry]) -> List[Entry]:
+    try:
+        return call("list")["entries"]
+    except EngineError as exc:
+        print("could not refresh the menu: %s" % exc)
+        return entries
+
+
 # ---------------------------------------------------------------- main
 def main() -> int:
     try:
@@ -261,10 +330,19 @@ def main() -> int:
     try:
         while True:
             print_menu(entries)
-            print("\nPick: numbers & ranges (1 4 6-8) or a keyword (disk); 'q' to quit")
+            print("\nPick: numbers & ranges (1 4 6-8) or a keyword (disk)")
+            print("      'add' = add your own command | 'delete' = remove one of yours | 'q' = quit")
             selection = input("select> ").strip()
             if selection in ("q", "quit"):
                 return 0
+            if selection == "add":
+                if add_custom_entry():
+                    entries = reload_entries(entries)
+                continue
+            if selection == "delete":
+                if delete_custom_entry(entries):
+                    entries = reload_entries(entries)
+                continue
             numbers = parse_selection(selection, entries)
             if not numbers:
                 print("nothing matched")

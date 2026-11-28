@@ -170,3 +170,143 @@ def load_catalog(
 
     entries.sort(key=_menu_key)  # stable: file order kept inside a category
     return entries
+
+
+# ---------------------------------------------------------------- custom entries
+class CatalogError(Exception):
+    """A problem with the custom catalog; `code` is the JSON error code."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def builtin_ids() -> set:
+    """Ids of every builtin entry, including ones hidden on this machine."""
+    return {_normalize(raw)["id"] for raw in _load_builtin_raw()}
+
+
+def _raw_id(raw: object) -> Optional[str]:
+    try:
+        return _normalize(raw)["id"]
+    except ValueError:
+        return None
+
+
+def read_custom_raw(path: Optional[str] = None) -> List[object]:
+    """The custom catalog exactly as stored ([] when the file doesn't exist).
+
+    An unreadable file raises instead of returning [], so that a write can
+    never replace a damaged file the user may still want to repair by hand.
+    """
+    path = path or custom_catalog_path()
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as exc:
+        raise CatalogError("catalog_unreadable", "custom catalog %s unreadable: %s" % (path, exc))
+    if not isinstance(data, list):
+        raise CatalogError("catalog_unreadable", "custom catalog %s: top level must be a JSON array" % path)
+    return data
+
+
+def write_custom_raw(entries: List[object], path: Optional[str] = None) -> None:
+    """Write the custom catalog atomically (temp file, then rename)."""
+    path = path or custom_catalog_path()
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    temp = path + ".tmp"
+    with open(temp, "w", encoding="utf-8") as handle:
+        json.dump(entries, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    os.replace(temp, path)
+
+
+def add_custom(
+    name: str,
+    command: str,
+    description: str = "",
+    category: str = "Custom",
+    sudo: bool = False,
+    risky: bool = False,
+    entry_id: Optional[str] = None,
+    path: Optional[str] = None,
+) -> Dict[str, object]:
+    """Add a custom entry and return it as stored. The id is generated from
+    the name (with -2, -3... on a clash) unless `entry_id` is given."""
+    existing = read_custom_raw(path)
+    taken = builtin_ids() | {i for i in (_raw_id(r) for r in existing) if i}
+
+    raw: Dict[str, object] = {
+        "name": name, "description": description, "category": category,
+        "command": command, "sudo": sudo, "risky": risky,
+    }
+    if entry_id:
+        raw["id"] = entry_id
+    try:
+        norm = _normalize(raw)
+    except ValueError as exc:
+        raise CatalogError("invalid_entry", str(exc))
+
+    if entry_id:
+        if norm["id"] in taken:
+            raise CatalogError("invalid_entry", "id %r is already used" % norm["id"])
+    else:
+        base, number = norm["id"], 2
+        while norm["id"] in taken:
+            norm["id"] = "%s-%d" % (base, number)
+            number += 1
+
+    stored = {k: norm[k] for k in ("id", "name", "description", "category", "command", "sudo", "risky")}
+    write_custom_raw(existing + [stored], path)
+    return stored
+
+
+def _editable_index(entry_id: str, existing: List[object]) -> int:
+    if entry_id in builtin_ids():
+        raise CatalogError("builtin_readonly", "%r is a builtin entry and cannot be changed" % entry_id)
+    for index, raw in enumerate(existing):
+        if _raw_id(raw) == entry_id:
+            return index
+    raise CatalogError("unknown_id", "No custom entry with id %r" % entry_id)
+
+
+def edit_custom(entry_id: str, changes: Dict[str, object], path: Optional[str] = None) -> Dict[str, object]:
+    """Change fields of a custom entry (the id never changes). Fields the
+    command doesn't know about, like hand-written params, are kept."""
+    existing = read_custom_raw(path)
+    index = _editable_index(entry_id, existing)
+    merged = dict(existing[index])
+    merged.update(changes)
+    merged["id"] = entry_id
+    if "command" in changes:
+        merged.pop("commands", None)  # a new command replaces per-package-manager variants
+    try:
+        _normalize(merged)
+    except ValueError as exc:
+        raise CatalogError("invalid_entry", str(exc))
+    existing[index] = merged
+    write_custom_raw(existing, path)
+    return merged
+
+
+def delete_custom(entry_id: str, path: Optional[str] = None) -> Dict[str, object]:
+    """Remove a custom entry and return what was removed."""
+    existing = read_custom_raw(path)
+    index = _editable_index(entry_id, existing)
+    removed = existing.pop(index)
+    write_custom_raw(existing, path)
+    return removed
+
+
+def describe_custom(raw: Dict[str, object], machine: Machine) -> Dict[str, object]:
+    """A stored custom entry as the JSON entry object, resolved for `machine`
+    (command is null if a hand-written entry has no variant for it)."""
+    norm = _normalize(raw)
+    return {
+        "id": norm["id"], "name": norm["name"], "description": norm["description"],
+        "category": norm["category"], "command": resolve_command(norm, machine),
+        "sudo": norm["sudo"], "risky": norm["risky"], "params": norm["params"],
+        "source": "custom",
+    }

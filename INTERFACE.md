@@ -1,8 +1,8 @@
 # tacman JSON Interface (schema 1) - DRAFT
 
-**Implementation status (engine 0.1.0):** `info`, `list` and `run` (including
-`--dry-run`) are implemented and tested. `plan` and the `custom` commands are
-specified below but not built yet; `run --dry-run` covers what `plan` is for.
+**Implementation status (engine 0.2.0):** everything in this document is
+implemented and tested: `info`, `list`, `plan`, `run` (including `--dry-run`) and
+the `custom add/edit/delete` commands.
 
 `tacman menu` is an interactive front-end that uses only this interface, so it
 doubles as a reference client. `info` and `list` accept `--pretty` for indented
@@ -119,7 +119,7 @@ same param name (install and remove both want `package`), use the namespaced for
 
 ```json
 { "schema": 1, "ok": true, "data": {
-    "engine_version": "0.1.0",
+    "engine_version": "0.2.0",
     "distro_id": "ubuntu",
     "distro_name": "Ubuntu",
     "id_like": ["debian"],
@@ -152,13 +152,23 @@ Dry run. Shows exactly what would execute, in order, and changes nothing.
 ```json
 { "schema": 1, "ok": true, "data": {
     "jobs": [
-      { "id": "disk-usage", "argv": ["sh", "-c", "df -h"], "sudo": false, "risky": false },
-      { "id": "restart-networking", "argv": ["sudo", "-n", "sh", "-c", "systemctl restart NetworkManager"], "sudo": true, "risky": true }
+      { "id": "disk-usage", "command": "df -h", "argv": ["sh", "-c", "df -h"], "sudo": false, "risky": false },
+      { "id": "restart-networking", "command": "systemctl restart NetworkManager", "argv": ["sudo", "-n", "sh", "-c", "systemctl restart NetworkManager"], "sudo": true, "risky": true }
     ],
     "needs_confirmation": ["restart-networking"],
     "missing_params": []
 } }
 ```
+
+- There is one job per id given, in the same order (an id listed twice appears twice).
+- `needs_confirmation` lists each risky id once; these are the ids `run` would
+  refuse without `--confirm-risky`.
+- Missing params are **reported, not an error**, so a front-end can ask for them:
+  `"missing_params": [{"id": "install-package", "name": "package"}]`. The affected
+  job still appears, with its `{package}` placeholder unfilled in `command`.
+- An unknown id is an error (`unknown_id`, exit code 3), as with `run`.
+- `argv` is exactly what `run` would execute. For `sudo` entries it starts with
+  `["sudo", "-n"]`, unless the engine itself runs as root.
 
 ### `tacman run --json <id> [<id> ...] [options]`
 
@@ -204,23 +214,50 @@ Every line has `"schema": 1`, an `"event"` name, and a `"ts"` (ISO 8601 UTC).
 
 ### Custom entries
 
-All print a normal single-object response.
+All three print a normal single-object response (section 2).
 
 ```
-tacman custom add --json --name "Docker containers" --description "list running containers" \
-    --category Docker --command "docker ps" [--sudo] [--risky]
-tacman custom edit --json <id> [--name ...] [--command ...] ...
+tacman custom add --json --name "Docker containers" --command "docker ps" \
+    [--description TEXT] [--category NAME] [--id ID] [--sudo] [--risky]
+tacman custom edit --json <id> [--name TEXT] [--description TEXT] [--category NAME] \
+    [--command TEXT] [--sudo | --no-sudo] [--risky | --no-risky]
 tacman custom delete --json <id>
 ```
 
-They are stored in `~/.config/tacman/catalog.json`. `add` returns the new entry with
-its generated `id`. Editing or deleting a builtin entry fails with code
-`builtin_readonly`.
+- **add** needs `--name` and `--command`; the category defaults to `Custom`. It
+  returns the new entry (section 3) with its generated `id`: the name in lowercase
+  with dashes (`Docker containers` becomes `docker-containers`), plus `-2`, `-3`...
+  if that id is taken. `--id` lets you choose the id instead; a taken id is an error
+  (`invalid_entry`). Tip: write `--command=-x ...` (with the `=`) when a value starts
+  with a dash.
+- **edit** changes only the fields you give (at least one is required) and never
+  changes the `id`. A new `--command` replaces any per-package-manager `commands` of a
+  hand-written entry. Fields the command doesn't know about, such as hand-written
+  `params`, are kept.
+- **delete** returns `{ "id": "...", "name": "...", "deleted": true }`.
+- Entries made with these commands have one universal command and no params.
+  Hand-written entries in the catalog file can use `commands` and `params` (section 6).
+- Builtin entries can't be edited or deleted: `builtin_readonly`.
+- The file is `~/.config/tacman/catalog.json` (override with `$TACMAN_CATALOG`) and
+  is written atomically. If it is damaged (not valid JSON, or not an array), these
+  commands fail with `catalog_unreadable` and leave it **untouched**, so it can be
+  repaired by hand. `list` and `run` just skip a damaged file with a warning.
+- The interactive menu uses these commands: type `add` to add your own command, or
+  `delete` to remove one of yours.
 
 ## 5. Error codes (`error.code`)
 
 `unknown_id`, `missing_param`, `confirmation_required`, `builtin_readonly`,
 `invalid_entry`, `catalog_unreadable`, `usage`, `internal`.
+
+| `error.code` | Exit code |
+|--------------|-----------|
+| `unknown_id` | 3 |
+| `confirmation_required` | 4 |
+| `catalog_unreadable`, `internal` | 1 |
+| `usage`, `missing_param`, `builtin_readonly`, `invalid_entry` | 2 |
+
+(Exit codes 5 and 130 come from `run` itself and have no error object.)
 
 ## 6. Catalog file format (for people adding entries)
 

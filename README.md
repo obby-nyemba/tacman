@@ -18,6 +18,8 @@ python3 -m tacman info
 python3 -m tacman list [--category Disk] [--search word]
 python3 -m tacman run disk-usage uptime-load
 python3 -m tacman run install-package --param package=htop --dry-run
+python3 -m tacman plan install-package --param package=htop     # show what would run
+python3 -m tacman custom add --name "Long listing" --command "ls -la"
 python3 -m tacman run restart-networking --confirm-risky restart-networking
 ```
 
@@ -27,7 +29,8 @@ Layout: `tacman/detect.py` (distro + package manager), `tacman/catalog.py`
 (builtin + custom entries), `tacman/runner.py` (queue, params, sudo),
 `tacman/cli.py` (commands + JSON output),
 `tacman/menu.py` (interactive menu), `tacman/data/builtin.json` (the catalog).
-Custom entries: `~/.config/tacman/catalog.json`, same format as `builtin.json`.
+Custom entries: `~/.config/tacman/catalog.json`, same format as `builtin.json`. Add
+them from the menu (type `add`) or with `tacman custom add`.
 
 ## Contributing
 
